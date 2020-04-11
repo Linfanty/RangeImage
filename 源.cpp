@@ -1,4 +1,4 @@
-#include <iostream>
+ï»¿#include <iostream>
 
 #include <boost/thread/thread.hpp>
 #include <pcl/range_image/range_image.h>
@@ -10,9 +10,15 @@
 #include <pcl/features/range_image_border_extractor.h>
 #include <pcl/console/parse.h>
 #include <pcl/io/png_io.h>
+#include <pcl/common/transforms.h>
 #include <ctime>
 
 typedef pcl::PointXYZ PointType;
+
+pcl::PointCloud<PointType>::Ptr point_cloud_ptr(new pcl::PointCloud<PointType>);
+pcl::PointCloud<PointType>& point_cloud = *point_cloud_ptr;
+pcl::PointCloud<pcl::PointWithViewpoint> far_ranges;
+
 
 // --------------------
 // -----Parameters-----
@@ -23,6 +29,65 @@ pcl::RangeImage::CoordinateFrame coordinate_frame = pcl::RangeImage::CAMERA_FRAM
 bool setUnseenToMaxRange = false;
 bool live_update = false;
 bool have_far_ranges = false;
+
+void print_png( int x, int y, int z,
+				std::string png_pos,
+				int Radian_angle_molecular,
+				int Radian_angle_denominator) {
+	pcl::visualization::PCLVisualizer viewer("3D Viewer");   //åˆ›å»ºåˆå§‹åŒ–å¯è§†åŒ–å¯¹è±¡
+	viewer.setBackgroundColor(1, 1, 1);                      //è®¾ç½®èƒŒæ™¯è®¾ç½®ä¸ºç™½è‰²
+	viewer.addCoordinateSystem(1.0f);              //è®¾ç½®åæ ‡ç³»
+	float noise_level = 0.0;
+	float min_range = 0.0f;
+	int imageSizeX = 600;
+	int imageSizeY = 600;
+	float centerX = imageSizeX / 2.0f;
+	float centerY = imageSizeY / 2.0f;
+	float LengthX = -800.0f;
+	float LengthY = -800.0f;
+
+	Eigen::Affine3f transform_2 = Eigen::Affine3f::Identity();
+	float theta = Radian_angle_molecular * M_PI / Radian_angle_denominator; // å¼§åº¦è§’
+	if(x == 1)
+		transform_2.rotate(Eigen::AngleAxisf(theta, Eigen::Vector3f::UnitX()));
+	if(y == 1)
+		transform_2.rotate(Eigen::AngleAxisf(theta, Eigen::Vector3f::UnitY()));
+	if(z == 1)
+		transform_2.rotate(Eigen::AngleAxisf(theta, Eigen::Vector3f::UnitZ()));
+
+	pcl::PointCloud<PointType>::Ptr transformed_cloud_ptr(new pcl::PointCloud<PointType>);
+	pcl::PointCloud<PointType>& transformed_cloud = *transformed_cloud_ptr;
+	// æ‰§è¡Œå˜æ¢ï¼Œå¹¶å°†ç»“æœä¿å­˜åœ¨æ–°åˆ›å»ºçš„â€â€ transformed_cloud â€â€ä¸­
+	// *point_cloud_ptr = *transformed_cloud;
+	pcl::transformPointCloud(point_cloud, transformed_cloud, transform_2);
+	
+
+	pcl::visualization::PointCloudColorHandlerCustom<PointType> point_cloud_color_handler(transformed_cloud_ptr, 0, 0, 0); //è®¾ç½®è‡ªå®šä¹‰é¢œè‰²
+	viewer.addPointCloud(transformed_cloud_ptr, point_cloud_color_handler, png_pos);
+	viewer.setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 2, png_pos);
+	// cout << transformed_cloud_ptr << endl;
+	// cout << &point_cloud_color_handler << endl; alaways equal same
+
+	viewer.spinOnce();
+	// if (png_pos == "Up")
+   	//	while (1)
+	//		viewer.spinOnce();
+	Eigen::Affine3f scene_sensor_pose = viewer.getViewerPose();
+
+	boost::shared_ptr<pcl::RangeImagePlanar> range_image_planar_ptr(new pcl::RangeImagePlanar);
+	pcl::RangeImagePlanar& range_image_planar = *range_image_planar_ptr;
+	range_image_planar.createFromPointCloudWithFixedSize(transformed_cloud, imageSizeX, imageSizeY,
+		centerX, centerY, LengthX, LengthY,
+		scene_sensor_pose, coordinate_frame, noise_level, min_range);
+
+	float* ranges = range_image_planar.getRangesArray();
+	unsigned char* rgb_image = pcl::visualization::FloatImageUtils::getVisualImage(ranges, range_image_planar.width, range_image_planar.height);
+	std::string png_name = "RangeImageRGB_" + png_pos + ".png";
+	pcl::io::saveRgbPNGFile(png_name, rgb_image, range_image_planar.width, range_image_planar.height);
+
+	transformed_cloud_ptr.reset();
+}
+
 
 // --------------
 // -----Help-----
@@ -87,10 +152,8 @@ main(int argc, char** argv)
 	// ------------------------------------------------------------------
 	// -----Read pcd file or create example point cloud if not given-----
 	// ------------------------------------------------------------------
-	pcl::PointCloud<PointType>::Ptr point_cloud_ptr(new pcl::PointCloud<PointType>);
-	pcl::PointCloud<PointType>& point_cloud = *point_cloud_ptr;
-	pcl::PointCloud<pcl::PointWithViewpoint> far_ranges;
 
+	/*
 	Eigen::Matrix4f T;
 	T << 1, 0, 0, 0,
 		0, 1, 0, 0,
@@ -103,23 +166,23 @@ main(int argc, char** argv)
 		0, 0, 0, 1;
 	Eigen::Affine3f Traw(T * T1);
 	Eigen::Affine3f scene_sensor_pose = Traw;
-
-	// Eigen::Affine3f scene_sensor_pose(Eigen::Affine3f::Identity());  //´«¸ĞÆ÷µÄÎ»ÖÃ
+	*/
+	Eigen::Affine3f scene_sensor_pose(Eigen::Affine3f::Identity());  //ä¼ æ„Ÿå™¨çš„ä½ç½®
 	std::vector<int> pcd_filename_indices = pcl::console::parse_file_extension_argument(argc, argv, "pcd");
 	if (!pcd_filename_indices.empty())
 	{
 		std::string filename = argv[pcd_filename_indices[0]];
-		if (pcl::io::loadPCDFile(filename, point_cloud) == -1)   //´ò¿ªÎÄ¼ş
+		if (pcl::io::loadPCDFile(filename, point_cloud) == -1)   //æ‰“å¼€æ–‡ä»¶
 		{
 			cout << "Was not able to open file \"" << filename << "\".\n";
 			printUsage(argv[0]);
 			return 0;
 		}
 
-		std::cout << "´ÓPCDÎÄ¼şÖĞÒÑ¼ÓÔØÊı¾İµã¸öÊı£º " << point_cloud.width * point_cloud.height
-			<< "\n¿í¶ÈÎª£º" << point_cloud.width
-			<< "\n¸ß¶ÈÎª£º" << point_cloud.height
-			<< "\nÇ°Îå¸öµãµÄĞÅÏ¢Îª: \n";
+		std::cout << "ä»PCDæ–‡ä»¶ä¸­å·²åŠ è½½æ•°æ®ç‚¹ä¸ªæ•°ï¼š " << point_cloud.width * point_cloud.height
+			<< "\nå®½åº¦ä¸ºï¼š" << point_cloud.width
+			<< "\né«˜åº¦ä¸ºï¼š" << point_cloud.height
+			<< "\nå‰äº”ä¸ªç‚¹çš„ä¿¡æ¯ä¸º: \n";
 		for (size_t i = 0; i < 5; ++i) 
 			std::cout << "    " << point_cloud.points[i].x
 			<< " " << point_cloud.points[i].y
@@ -128,7 +191,7 @@ main(int argc, char** argv)
 		scene_sensor_pose = Eigen::Affine3f(Eigen::Translation3f(point_cloud.sensor_origin_[0],
 			point_cloud.sensor_origin_[1],
 			point_cloud.sensor_origin_[2])) *
-			Eigen::Affine3f(point_cloud.sensor_orientation_);  //·ÂÉä±ä»»¾ØÕó
+			Eigen::Affine3f(point_cloud.sensor_orientation_);  //ä»¿å°„å˜æ¢çŸ©é˜µ
 
 		if (have_far_ranges) 
 		{
@@ -140,7 +203,7 @@ main(int argc, char** argv)
 	else
 	{
 		cout << "\nNo *.pcd file given => Genarating example point cloud.\n\n";
-		for (float x = -0.5f; x <= 0.5f; x += 0.01f)      //Ìî³äÒ»¸ö¾ØĞÎµÄµãÔÆ
+		for (float x = -0.5f; x <= 0.5f; x += 0.01f)      //å¡«å……ä¸€ä¸ªçŸ©å½¢çš„ç‚¹äº‘
 		{
 			for (float y = -0.5f; y <= 0.5f; y += 0.01f)
 			{
@@ -150,11 +213,12 @@ main(int argc, char** argv)
 		}
 		point_cloud.width = (int)point_cloud.points.size();  point_cloud.height = 1;
 	}
+	
 
 	// -----------------------------------------------
 	// -----Create RangeImage from the PointCloud-----
 	// -----------------------------------------------
-	float noise_level = 0.0;      //¸÷ÖÖ²ÎÊıµÄÉèÖÃ
+	float noise_level = 0.0;      //å„ç§å‚æ•°çš„è®¾ç½®
 	float min_range = 0.0f;
 	int border_size = 1;
 	boost::shared_ptr<pcl::RangeImage> range_image_ptr(new pcl::RangeImage);
@@ -168,28 +232,30 @@ main(int argc, char** argv)
 	// --------------------------------------------
 	// -----Open 3D viewer and add point cloud-----
 	// --------------------------------------------
-	pcl::visualization::PCLVisualizer viewer("3D Viewer");   //´´½¨³õÊ¼»¯¿ÉÊÓ»¯¶ÔÏó
-	viewer.setBackgroundColor(1, 1, 1);                      //ÉèÖÃ±³¾°ÉèÖÃÎª°×É«
-	viewer.addCoordinateSystem(1.0f);              //ÉèÖÃ×ø±êÏµ
-	pcl::visualization::PointCloudColorHandlerCustom<PointType> point_cloud_color_handler(point_cloud_ptr, 0, 0, 0); //ÉèÖÃ×Ô¶¨ÒåÑÕÉ«
-	viewer.addPointCloud(point_cloud_ptr, point_cloud_color_handler, "original point cloud");   //Ìí¼ÓµãÔÆ
+	pcl::visualization::PCLVisualizer viewer("3D Viewer");   //åˆ›å»ºåˆå§‹åŒ–å¯è§†åŒ–å¯¹è±¡
+	viewer.setBackgroundColor(1, 1, 1);                      //è®¾ç½®èƒŒæ™¯è®¾ç½®ä¸ºç™½è‰²
+	viewer.addCoordinateSystem(1.0f);              //è®¾ç½®åæ ‡ç³»
+
+	/*
+	pcl::visualization::PointCloudColorHandlerCustom<PointType> point_cloud_color_handler(point_cloud_ptr, 0, 0, 0); //è®¾ç½®è‡ªå®šä¹‰é¢œè‰²
+	viewer.addPointCloud(point_cloud_ptr, point_cloud_color_handler, "original point cloud");   //æ·»åŠ ç‚¹äº‘
 	// PointCloudColorHandlerCustom<pcl::PointWithRange> range_image_color_handler (range_image_ptr, 150, 150, 150);
 	// viewer.addPointCloud (range_image_ptr, range_image_color_handler, "range image");
 	// viewer.setPointCloudRenderingProperties (PCL_VISUALIZER_POINT_SIZE, 2, "range image");
 
 	// -------------------------
-	// -----Extract bordersÌáÈ¡±ß½çµÄ²¿·Ö-----
+	// -----Extract bordersæå–è¾¹ç•Œçš„éƒ¨åˆ†-----
 	// -------------------------
 	pcl::RangeImageBorderExtractor border_extractor(&range_image);
 	pcl::PointCloud<pcl::BorderDescription> border_descriptions;
-	border_extractor.compute(border_descriptions);     //ÌáÈ¡±ß½ç¼ÆËãÃèÊö×Ó
+	border_extractor.compute(border_descriptions);     //æå–è¾¹ç•Œè®¡ç®—æè¿°å­
 
 	// -------------------------------------------------------
-	// -----Show points in 3D viewerÔÚ3D ÊÓ¿ÚÖĞÏÔÊ¾µãÔÆ-----
+	// -----Show points in 3D vieweråœ¨3D è§†å£ä¸­æ˜¾ç¤ºç‚¹äº‘-----
 	// ----------------------------------------------------
-	pcl::PointCloud<pcl::PointWithRange>::Ptr border_points_ptr(new pcl::PointCloud<pcl::PointWithRange>),  //ÎïÌå±ß½ç
-		veil_points_ptr(new pcl::PointCloud<pcl::PointWithRange>),     //veil±ß½ç
-		shadow_points_ptr(new pcl::PointCloud<pcl::PointWithRange>);   //ÒõÓ°±ß½ç
+	pcl::PointCloud<pcl::PointWithRange>::Ptr border_points_ptr(new pcl::PointCloud<pcl::PointWithRange>),  //ç‰©ä½“è¾¹ç•Œ
+		veil_points_ptr(new pcl::PointCloud<pcl::PointWithRange>),     //veilè¾¹ç•Œ
+		shadow_points_ptr(new pcl::PointCloud<pcl::PointWithRange>);   //é˜´å½±è¾¹ç•Œ
 	pcl::PointCloud<pcl::PointWithRange>& border_points = *border_points_ptr,
 		& veil_points = *veil_points_ptr,
 		& shadow_points = *shadow_points_ptr;
@@ -208,21 +274,21 @@ main(int argc, char** argv)
 				shadow_points.points.push_back(range_image.points[y * range_image.width + x]);
 		}
 	}
-	pcl::visualization::PointCloudColorHandlerCustom<pcl::PointWithRange> border_points_color_handler(border_points_ptr, 0, 255, 0); // GREENÂÌÉ« ÎïÌå
+	pcl::visualization::PointCloudColorHandlerCustom<pcl::PointWithRange> border_points_color_handler(border_points_ptr, 0, 255, 0); // GREENç»¿è‰² ç‰©ä½“
 	viewer.addPointCloud<pcl::PointWithRange>(border_points_ptr, border_points_color_handler, "border points");
 	viewer.setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 7, "border points");
 
-	pcl::visualization::PointCloudColorHandlerCustom<pcl::PointWithRange> veil_points_color_handler(veil_points_ptr, 255, 0, 0); // REDºìÉ« ÄÚ²åµã
+	pcl::visualization::PointCloudColorHandlerCustom<pcl::PointWithRange> veil_points_color_handler(veil_points_ptr, 255, 0, 0); // REDçº¢è‰² å†…æ’ç‚¹
 	viewer.addPointCloud<pcl::PointWithRange>(veil_points_ptr, veil_points_color_handler, "veil points");
 	viewer.setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 7, "veil points");
 
-	pcl::visualization::PointCloudColorHandlerCustom<pcl::PointWithRange> shadow_points_color_handler(shadow_points_ptr, 0, 255, 255); // ÇàÉ« ÒõÓ°±³ºó
+	pcl::visualization::PointCloudColorHandlerCustom<pcl::PointWithRange> shadow_points_color_handler(shadow_points_ptr, 0, 255, 255); // é’è‰² é˜´å½±èƒŒå
 	viewer.addPointCloud<pcl::PointWithRange>(shadow_points_ptr, shadow_points_color_handler, "shadow points");
 	viewer.setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 7, "shadow points");
+	*/
 
-
-	//¿ÉÊÓ»¯Éî¶ÈÍ¼
-	std::cout << "wty test 3" << std::endl;
+	//å¯è§†åŒ–æ·±åº¦å›¾
+	std::cout << "wty test 9" << std::endl;
 	int imageSizeX = 600;
 	int imageSizeY = 600;
 	float centerX = imageSizeX / 2.0f;
@@ -230,15 +296,22 @@ main(int argc, char** argv)
 	float LengthX = -800.0f;
 	float LengthY = -800.0f;
 
-	boost::shared_ptr<pcl::RangeImagePlanar> range_image_planar_ptr(new pcl::RangeImagePlanar);
-	pcl::RangeImagePlanar& range_image_planar = *range_image_planar_ptr;
-	range_image_planar.createFromPointCloudWithFixedSize(point_cloud, imageSizeX, imageSizeY,
-		centerX, centerY, LengthX, LengthY,
-		scene_sensor_pose, coordinate_frame, noise_level, min_range);
+	// --- SAVA Depth map in all directions
+	// transform_2.translation() << 2.5, 0.0, 0.0;
+	print_png(1, 1, 1, "Front", 1, 1);
+	print_png(0, 1, 0, "Back", 1, 1); // mirror print_png(1, 0, 1, "Back", 1, 1);
+	print_png(1, 0, 0, "Up", 1, 2);
+	print_png(1, 0, 0, "Down", 3, 2);
+	print_png(0, 1, 0, "Left", 1, 2);
+	print_png(0, 1, 0, "Right", 3, 2); // mirror print_png(0, 1, 0, "Right", 1, 2);
 
-	pcl::visualization::RangeImageVisualizer range_image_widget("Range image");
-	range_image_widget.showRangeImage(range_image_planar);
+	// print_png(0, 0, 1, "unknown3", 1, 2);
+	// print_png(1, 0, 1, "unknown4", 1, 2);
+	// print_png(0, 1, 1, "unknown5", 1, 2);
+	// print_png(1, 1, 0, "unknown6", 1, 2);
+	// print_png(1, 1, 1, "unknown7", 1, 2);
 
+	/*
 	while (!viewer.wasStopped())
 	{
 		range_image_widget.spinOnce();
@@ -248,13 +321,20 @@ main(int argc, char** argv)
 		if (live_update)
 		{
 			scene_sensor_pose = viewer.getViewerPose();
-			range_image_planar.createFromPointCloudWithFixedSize(point_cloud, imageSizeX, imageSizeY,
+			range_image_planar.createFromPointCloudWithFixedSize(transformed_cloud, imageSizeX, imageSizeY,
 				centerX, centerY, LengthX, LengthY,
 				scene_sensor_pose, coordinate_frame, noise_level, min_range);
 			range_image_widget.showRangeImage(range_image_planar);
+
+			float* ranges = range_image_planar.getRangesArray();
+			// std::cout << range_image_planar.width << ' ' << range_image_planar.height << endl;
+			unsigned char* rgb_image = pcl::visualization::FloatImageUtils::getVisualImage(ranges, range_image_planar.width, range_image_planar.height);
+			std::string png_name = "saveRangeImageRGBUp.png";
+
+			pcl::io::saveRgbPNGFile(png_name, rgb_image, range_image_planar.width, range_image_planar.height);
 		}
 	}
-
+    */ 
 	//-------------------------------------
 	// -----Show points on range image-----
 	// ------------------------------------
