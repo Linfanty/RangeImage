@@ -34,36 +34,36 @@ float LengthY = -800.0f;
 // --------------------
 float angular_resolution = 0.5f;
 pcl::RangeImage::CoordinateFrame coordinate_frame = pcl::RangeImage::CAMERA_FRAME; // LASER_FRAME;
-// LASER_FRAME
 bool setUnseenToMaxRange = false;
 bool live_update = false;
 bool have_far_ranges = false;
 
-void print_png( int x, int y, int z,
-				std::string png_pos,
-				int Radian_angle_molecular,
-				int Radian_angle_denominator) {
+void print_png(int x, int y, int z,
+	std::string png_pos,
+	int Radian_angle_molecular,
+	int Radian_angle_denominator) {
 
-	pcl::visualization::PCLVisualizer viewer("3D Viewer");   //创建初始化可视化对象
+	pcl::visualization::PCLVisualizer viewer = pcl::visualization::PCLVisualizer();   //创建初始化可视化对象
 	viewer.setBackgroundColor(1, 1, 1);                      //设置背景设置为白色
 	viewer.addCoordinateSystem(1.0f);              //设置坐标系
 
 
 	Eigen::Affine3f transform_2 = Eigen::Affine3f::Identity();
 	float theta = Radian_angle_molecular * M_PI / Radian_angle_denominator; // 弧度角
-	if(x == 1)
+	if (x == 1)
 		transform_2.rotate(Eigen::AngleAxisf(theta, Eigen::Vector3f::UnitX()));
-	if(y == 1)
+	if (y == 1)
 		transform_2.rotate(Eigen::AngleAxisf(theta, Eigen::Vector3f::UnitY()));
-	if(z == 1)
+	if (z == 1)
 		transform_2.rotate(Eigen::AngleAxisf(theta, Eigen::Vector3f::UnitZ()));
 
+	// transform_2.translation() << 100, 100, 100;
 	pcl::PointCloud<PointType>::Ptr transformed_cloud_ptr(new pcl::PointCloud<PointType>);
 	pcl::PointCloud<PointType>& transformed_cloud = *transformed_cloud_ptr;
 	// 执行变换，并将结果保存在新创建的‎‎ transformed_cloud ‎‎中
 	// *point_cloud_ptr = *transformed_cloud;
 	pcl::transformPointCloud(point_cloud, transformed_cloud, transform_2);
-	
+
 
 	pcl::visualization::PointCloudColorHandlerCustom<PointType> point_cloud_color_handler(transformed_cloud_ptr, 0, 0, 0); //设置自定义颜色
 	viewer.addPointCloud(transformed_cloud_ptr, point_cloud_color_handler, png_pos);
@@ -72,10 +72,11 @@ void print_png( int x, int y, int z,
 	// cout << &point_cloud_color_handler << endl; alaways equal same
 
 	viewer.spinOnce();
-	// if (png_pos == "Up")
-   	//	while (1)
-	//		viewer.spinOnce();
 	Eigen::Affine3f scene_sensor_pose = viewer.getViewerPose();
+	//Eigen::Affine3f  scene_sensor_pose(Eigen::Affine3f::Identity());
+	// if (png_pos == "Up")
+	//	while (1)
+	//		viewer.spinOnce();
 
 	boost::shared_ptr<pcl::RangeImagePlanar> range_image_planar_ptr(new pcl::RangeImagePlanar);
 	pcl::RangeImagePlanar& range_image_planar = *range_image_planar_ptr;
@@ -188,7 +189,7 @@ main(int argc, char** argv)
 			<< "\n宽度为：" << point_cloud.width
 			<< "\n高度为：" << point_cloud.height
 			<< "\n前五个点的信息为: \n";
-		for (size_t i = 0; i < 5; ++i) 
+		for (size_t i = 0; i < 5; ++i)
 			std::cout << "    " << point_cloud.points[i].x
 			<< " " << point_cloud.points[i].y
 			<< " " << point_cloud.points[i].z << std::endl;
@@ -198,7 +199,7 @@ main(int argc, char** argv)
 			point_cloud.sensor_origin_[2])) *
 			Eigen::Affine3f(point_cloud.sensor_orientation_);  //仿射变换矩阵
 
-		if (have_far_ranges) 
+		if (have_far_ranges)
 		{
 			std::string far_ranges_filename = pcl::getFilenameWithoutExtension(filename) + "_far_ranges.pcd";
 			if (pcl::io::loadPCDFile(far_ranges_filename.c_str(), far_ranges) == -1)
@@ -218,7 +219,7 @@ main(int argc, char** argv)
 		}
 		point_cloud.width = (int)point_cloud.points.size();  point_cloud.height = 1;
 	}
-	
+
 
 	// -----------------------------------------------
 	// -----Create RangeImage from the PointCloud-----
@@ -239,7 +240,7 @@ main(int argc, char** argv)
 	viewer.setBackgroundColor(1, 1, 1);                      //设置背景设置为白色
 	viewer.addCoordinateSystem(1.0f);              //设置坐标系
 
-	
+
 	pcl::visualization::PointCloudColorHandlerCustom<PointType> point_cloud_color_handler(point_cloud_ptr, 0, 0, 0); //设置自定义颜色
 	viewer.addPointCloud(point_cloud_ptr, point_cloud_color_handler, "original point cloud");   //添加点云
 	// PointCloudColorHandlerCustom<pcl::PointWithRange> range_image_color_handler (range_image_ptr, 150, 150, 150);
@@ -288,7 +289,7 @@ main(int argc, char** argv)
 	pcl::visualization::PointCloudColorHandlerCustom<pcl::PointWithRange> shadow_points_color_handler(shadow_points_ptr, 0, 255, 255); // 青色 阴影背后
 	viewer.addPointCloud<pcl::PointWithRange>(shadow_points_ptr, shadow_points_color_handler, "shadow points");
 	viewer.setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 7, "shadow points");
-	
+
 
 	//可视化深度图
 
@@ -314,13 +315,38 @@ main(int argc, char** argv)
 		scene_sensor_pose, coordinate_frame, noise_level, min_range);
 
 	pcl::visualization::RangeImageVisualizer range_image_widget("Range image planar");
+	pcl::visualization::RangeImageVisualizer range_image_widget_static("Range image static");
 	range_image_widget.showRangeImage(range_image_planar);
 
-	std::cout << "wty test 12" << std::endl;
+	std::cout << "wty test 16" << std::endl;
+	//-------------------------------------
+	// -----Show points on range image-----
+	// ------------------------------------
+
+	pcl::visualization::RangeImageVisualizer* range_image_borders_widget = NULL;
+	range_image_borders_widget =
+		pcl::visualization::RangeImageVisualizer::getRangeImageBordersWidget(range_image, -std::numeric_limits<float>::infinity(), std::numeric_limits<float>::infinity(), false,
+			border_descriptions, "Range image with borders");
+	range_image_borders_widget->setPosition(0, 700);
+	range_image_borders_widget->setSize(700, 400);
+	// range_image_borders_widget->showRangeImage(range_image);
+	int last_time = 0, png_num = 0;
+
+
+	boost::shared_ptr<pcl::RangeImage> sub_range_image_ptr(new pcl::RangeImage);
+	pcl::RangeImage& sub_range_image = *sub_range_image_ptr;
+	range_image.getSubImage(0, 0, 700, 400, 1, sub_range_image);
+	range_image_widget_static.setPosition(800, 600);
+	range_image_widget_static.showRangeImage(sub_range_image);
+
+	viewer.setPosition(800, 0);
+	// while (1)
+	//	viewer.spinOnce();
 
 	while (!viewer.wasStopped())
 	{
 		range_image_widget.spinOnce();
+		range_image_borders_widget->spinOnce();
 		viewer.spinOnce();
 		pcl_sleep(0.01);
 
@@ -329,45 +355,24 @@ main(int argc, char** argv)
 			scene_sensor_pose = viewer.getViewerPose();
 			range_image_planar.createFromPointCloudWithFixedSize(point_cloud, imageSizeX, imageSizeY,
 				centerX, centerY, LengthX, LengthY,
-				scene_sensor_pose, coordinate_frame, noise_level, min_range);;
+				scene_sensor_pose, coordinate_frame, noise_level, min_range);
 			range_image_widget.showRangeImage(range_image_planar);
-		}
-	}
-    
-	//-------------------------------------
-	// -----Show points on range image-----
-	// ------------------------------------
-	/*
-	pcl::visualization::RangeImageVisualizer* range_image_borders_widget = NULL;
-	 range_image_borders_widget =
-		pcl::visualization::RangeImageVisualizer::getRangeImageBordersWidget(range_image, -std::numeric_limits<float>::infinity(), std::numeric_limits<float>::infinity(), false,
-			border_descriptions, "Range image with borders");
-	// range_image_borders_widget->showRangeImage(range_image);
-
-	// -------------------------------------
 
 
-	//--------------------
-	// -----Main loop-----
-	//--------------------
-	int last_time = 0;
-	int png_num = 0;
-
-	while (!viewer.wasStopped())
-	{
-		range_image_borders_widget->spinOnce();
-		viewer.spinOnce();
-		pcl_sleep(0.01);
-
-		if (live_update)
-		{
-			scene_sensor_pose = viewer.getViewerPose();
 			range_image.createFromPointCloud(
 				point_cloud, angular_resolution, angular_resolution,
 				pcl::deg2rad(360.0f), pcl::deg2rad(180.0f),
 				scene_sensor_pose, coordinate_frame,
 				noise_level, min_range, border_size); // LASER_FRAME
+			// const Eigen::Vector3f point_cloud_center;
+			//range_image.createFromPointCloudWithKnownSize(
+			//	point_cloud, angular_resolution
+			//	point_cloud_center, 100,
+			//	scene_sensor_pose, coordinate_frame,
+			//	noise_level, min_range, border_size
+			//);
 			range_image_borders_widget->showRangeImage(range_image);
+
 
 			int  now_time = clock() / CLOCKS_PER_SEC;
 			if (now_time - last_time > 15) {
@@ -376,13 +381,11 @@ main(int argc, char** argv)
 				float* ranges = range_image.getRangesArray();
 				unsigned char* rgb_image = pcl::visualization::FloatImageUtils::getVisualImage(ranges, range_image.width, range_image.height);
 
-				std::string png_name = "saveRangeImageRGB" + std::to_string(png_num) + ".png";
+				std::string png_name = "RangeImageRGBAroundNow.png"; // std::to_string(png_num)
 				pcl::io::saveRgbPNGFile(png_name, rgb_image, range_image.width, range_image.height);
 				png_num++;
 				// pcl::io::savePNGFile("saveRangeImage.png", point_cloud, "rgb");
 			}
-			
 		}
 	}
-	*/
 }
