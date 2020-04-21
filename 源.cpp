@@ -42,10 +42,9 @@ void print_png(int x, int y, int z,
 	std::string png_pos,
 	int Radian_angle_molecular,
 	int Radian_angle_denominator) {
-
-	pcl::visualization::PCLVisualizer viewer = pcl::visualization::PCLVisualizer();   //创建初始化可视化对象
-	viewer.setBackgroundColor(1, 1, 1);                      //设置背景设置为白色
-	viewer.addCoordinateSystem(1.0f);              //设置坐标系
+	pcl::visualization::PCLVisualizer* viewer = new pcl::visualization::PCLVisualizer({png_pos});   //创建初始化可视化对象
+	viewer->setBackgroundColor(1, 1, 1);                      //设置背景设置为白色
+	viewer->addCoordinateSystem(1.0f);              //设置坐标系
 
 
 	Eigen::Affine3f transform_2 = Eigen::Affine3f::Identity();
@@ -57,7 +56,7 @@ void print_png(int x, int y, int z,
 	if (z == 1)
 		transform_2.rotate(Eigen::AngleAxisf(theta, Eigen::Vector3f::UnitZ()));
 
-	// transform_2.translation() << 100, 100, 100;
+	// transform_2.translation() << 100, 100, 0;
 	pcl::PointCloud<PointType>::Ptr transformed_cloud_ptr(new pcl::PointCloud<PointType>);
 	pcl::PointCloud<PointType>& transformed_cloud = *transformed_cloud_ptr;
 	// 执行变换，并将结果保存在新创建的‎‎ transformed_cloud ‎‎中
@@ -66,17 +65,17 @@ void print_png(int x, int y, int z,
 
 
 	pcl::visualization::PointCloudColorHandlerCustom<PointType> point_cloud_color_handler(transformed_cloud_ptr, 0, 0, 0); //设置自定义颜色
-	viewer.addPointCloud(transformed_cloud_ptr, point_cloud_color_handler, png_pos);
-	viewer.setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 2, png_pos);
+	viewer->addPointCloud(transformed_cloud_ptr, point_cloud_color_handler, png_pos);
+	viewer->setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 2, png_pos);
 	// cout << transformed_cloud_ptr << endl;
 	// cout << &point_cloud_color_handler << endl; alaways equal same
 
-	viewer.spinOnce();
-	Eigen::Affine3f scene_sensor_pose = viewer.getViewerPose();
+	//if (png_pos == "Back")  while (1)  viewer->spinOnce();
+
+	viewer->spinOnce(1, true);
+	Eigen::Affine3f scene_sensor_pose = viewer->getViewerPose();
 	//Eigen::Affine3f  scene_sensor_pose(Eigen::Affine3f::Identity());
-	// if (png_pos == "Up")
-	//	while (1)
-	//		viewer.spinOnce();
+	// if (png_pos == "Back")  while (1)  viewer->spinOnce();
 
 	boost::shared_ptr<pcl::RangeImagePlanar> range_image_planar_ptr(new pcl::RangeImagePlanar);
 	pcl::RangeImagePlanar& range_image_planar = *range_image_planar_ptr;
@@ -89,9 +88,11 @@ void print_png(int x, int y, int z,
 	std::string png_name = "RangeImageRGB_" + png_pos + ".png";
 	pcl::io::saveRgbPNGFile(png_name, rgb_image, range_image_planar.width, range_image_planar.height);
 
-	transformed_cloud_ptr.reset();
-	viewer.removeAllPointClouds();
-	viewer.close();
+	//transformed_cloud_ptr.reset();
+	//transformed_cloud_ptr.clear();
+	viewer->removeAllPointClouds();
+	viewer->removeAllCoordinateSystems();
+	viewer->close();
 }
 
 
@@ -295,7 +296,9 @@ main(int argc, char** argv)
 
 	// --- SAVA Depth map in all directions
 	// transform_2.translation() << 2.5, 0.0, 0.0;
-	print_png(1, 1, 1, "Front", 1, 1);
+	{
+		print_png(1, 1, 1, "Front", 1, 1);
+	}
 	print_png(0, 1, 0, "Back", 1, 1); // mirror print_png(1, 0, 1, "Back", 1, 1);
 	print_png(1, 0, 0, "Up", 1, 2);
 	print_png(1, 0, 0, "Down", 3, 2);
@@ -318,7 +321,7 @@ main(int argc, char** argv)
 	pcl::visualization::RangeImageVisualizer range_image_widget_static("Range image static");
 	range_image_widget.showRangeImage(range_image_planar);
 
-	std::cout << "wty test 16" << std::endl;
+	std::cout << "wty test 17" << std::endl;
 	//-------------------------------------
 	// -----Show points on range image-----
 	// ------------------------------------
