@@ -37,6 +37,7 @@ pcl::RangeImage::CoordinateFrame coordinate_frame = pcl::RangeImage::CAMERA_FRAM
 bool setUnseenToMaxRange = false;
 bool live_update = false;
 bool have_far_ranges = false;
+int save_cnt = 0;
 
 void print_png(int x, int y, int z,
 	std::string png_pos,
@@ -94,7 +95,29 @@ void print_png(int x, int y, int z,
 	viewer->removeAllCoordinateSystems();
 	viewer->close();
 }
+void keyboardEventOccurred(const pcl::visualization::KeyboardEvent& event,
+	void* viewer_void)
+{
+	boost::shared_ptr<pcl::visualization::PCLVisualizer> viewer = *static_cast<boost::shared_ptr<pcl::visualization::PCLVisualizer>*> (viewer_void);
+	if (event.getKeySym() == "s" && event.keyDown())
+	{
+		std::cout << "save was pressed" << std::endl;
+		// viewer->spinOnce(1, true);
+		Eigen::Affine3f scene_sensor_pose = viewer->getViewerPose();
+		cout << "here 2" << endl; // bug here
+		boost::shared_ptr<pcl::RangeImagePlanar> range_image_planar_ptr(new pcl::RangeImagePlanar);
+		pcl::RangeImagePlanar& range_image_planar = *range_image_planar_ptr;
+		range_image_planar.createFromPointCloudWithFixedSize(point_cloud, imageSizeX, imageSizeY,
+			centerX, centerY, LengthX, LengthY,
+			scene_sensor_pose, coordinate_frame, noise_level, min_range);
 
+		float* ranges = range_image_planar.getRangesArray();
+		unsigned char* rgb_image = pcl::visualization::FloatImageUtils::getVisualImage(ranges, range_image_planar.width, range_image_planar.height);
+		std::string png_name = "RangeImageRGB_" + std::to_string(save_cnt) + ".png";
+		pcl::io::saveRgbPNGFile(png_name, rgb_image, range_image_planar.width, range_image_planar.height);
+		save_cnt++;
+	}
+}
 
 // --------------
 // -----Help-----
@@ -234,6 +257,36 @@ main(int argc, char** argv)
 	if (setUnseenToMaxRange)
 		range_image.setUnseenToMaxRange();
 
+	if (pcl::console::find_argument(argc, argv, "-png") >= 0)
+	{
+		int rotate_x = 0, rotate_y = 0, rotate_z = 0, fz = 1, fm = 1;
+		if (pcl::console::find_argument(argc, argv, "-x") >= 0)
+			rotate_x = 1;
+		if (pcl::console::find_argument(argc, argv, "-y") >= 0)
+			rotate_y = 1;
+		if (pcl::console::find_argument(argc, argv, "-y") >= 0)
+			rotate_z = 1;
+
+		pcl::console::parse(argc, argv, "-fz", fz);
+		pcl::console::parse(argc, argv, "-fm", fm);
+
+		if (pcl::console::find_argument(argc, argv, "-name") >= 0)
+		{
+			std::string once_png_name;
+			pcl::console::parse(argc, argv, "-name", once_png_name);
+			print_png(rotate_x, rotate_y, rotate_z, once_png_name, fz, fm);
+		}
+		else
+		{
+			time_t t = time(0);
+			char tmpBuf[20];
+			strftime(tmpBuf, 20, "%Y-%m-%d_%H-%M-%S", localtime(&t));
+			// cout << tmpBuf << endl;  2020-04-22_10:41:22
+			print_png(rotate_x, rotate_y, rotate_z, tmpBuf, fz, fm);
+		}
+		return 0;
+	}
+
 	// --------------------------------------------
 	// -----Open 3D viewer and add point cloud-----
 	// --------------------------------------------
@@ -345,6 +398,7 @@ main(int argc, char** argv)
 	viewer.setPosition(800, 0);
 	// while (1)
 	//	viewer.spinOnce();
+	viewer.registerKeyboardCallback(keyboardEventOccurred, (void*)&viewer);
 
 	while (!viewer.wasStopped())
 	{
