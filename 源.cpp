@@ -102,9 +102,9 @@ void keyboardEventOccurred(const pcl::visualization::KeyboardEvent& event,
 	if (event.getKeySym() == "s" && event.keyDown())
 	{
 		std::cout << "save was pressed" << std::endl;
-		// viewer->spinOnce(1, true);
+		viewer->spinOnce(1, true);
 		Eigen::Affine3f scene_sensor_pose = viewer->getViewerPose();
-		cout << "here 2" << endl; // bug here
+
 		boost::shared_ptr<pcl::RangeImagePlanar> range_image_planar_ptr(new pcl::RangeImagePlanar);
 		pcl::RangeImagePlanar& range_image_planar = *range_image_planar_ptr;
 		range_image_planar.createFromPointCloudWithFixedSize(point_cloud, imageSizeX, imageSizeY,
@@ -290,13 +290,13 @@ main(int argc, char** argv)
 	// --------------------------------------------
 	// -----Open 3D viewer and add point cloud-----
 	// --------------------------------------------
-	pcl::visualization::PCLVisualizer viewer("3D Viewer");   //创建初始化可视化对象
-	viewer.setBackgroundColor(1, 1, 1);                      //设置背景设置为白色
-	viewer.addCoordinateSystem(1.0f);              //设置坐标系
+	pcl::visualization::PCLVisualizer* viewer = new pcl::visualization::PCLVisualizer({ "3D Viewer" }); //创建初始化可视化对象
+	viewer->setBackgroundColor(1, 1, 1);                      //设置背景设置为白色
+	viewer->addCoordinateSystem(1.0f);              //设置坐标系
 
 
 	pcl::visualization::PointCloudColorHandlerCustom<PointType> point_cloud_color_handler(point_cloud_ptr, 0, 0, 0); //设置自定义颜色
-	viewer.addPointCloud(point_cloud_ptr, point_cloud_color_handler, "original point cloud");   //添加点云
+	viewer->addPointCloud(point_cloud_ptr, point_cloud_color_handler, "original point cloud");   //添加点云
 	// PointCloudColorHandlerCustom<pcl::PointWithRange> range_image_color_handler (range_image_ptr, 150, 150, 150);
 	// viewer.addPointCloud (range_image_ptr, range_image_color_handler, "range image");
 	// viewer.setPointCloudRenderingProperties (PCL_VISUALIZER_POINT_SIZE, 2, "range image");
@@ -333,25 +333,23 @@ main(int argc, char** argv)
 		}
 	}
 	pcl::visualization::PointCloudColorHandlerCustom<pcl::PointWithRange> border_points_color_handler(border_points_ptr, 0, 255, 0); // GREEN绿色 物体
-	viewer.addPointCloud<pcl::PointWithRange>(border_points_ptr, border_points_color_handler, "border points");
-	viewer.setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 7, "border points");
+	viewer->addPointCloud<pcl::PointWithRange>(border_points_ptr, border_points_color_handler, "border points");
+	viewer->setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 7, "border points");
 
 	pcl::visualization::PointCloudColorHandlerCustom<pcl::PointWithRange> veil_points_color_handler(veil_points_ptr, 255, 0, 0); // RED红色 内插点
-	viewer.addPointCloud<pcl::PointWithRange>(veil_points_ptr, veil_points_color_handler, "veil points");
-	viewer.setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 7, "veil points");
+	viewer->addPointCloud<pcl::PointWithRange>(veil_points_ptr, veil_points_color_handler, "veil points");
+	viewer->setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 7, "veil points");
 
 	pcl::visualization::PointCloudColorHandlerCustom<pcl::PointWithRange> shadow_points_color_handler(shadow_points_ptr, 0, 255, 255); // 青色 阴影背后
-	viewer.addPointCloud<pcl::PointWithRange>(shadow_points_ptr, shadow_points_color_handler, "shadow points");
-	viewer.setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 7, "shadow points");
+	viewer->addPointCloud<pcl::PointWithRange>(shadow_points_ptr, shadow_points_color_handler, "shadow points");
+	viewer->setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 7, "shadow points");
 
 
 	//可视化深度图
 
 	// --- SAVA Depth map in all directions
 	// transform_2.translation() << 2.5, 0.0, 0.0;
-	{
-		print_png(1, 1, 1, "Front", 1, 1);
-	}
+	print_png(1, 1, 1, "Front", 1, 1);
 	print_png(0, 1, 0, "Back", 1, 1); // mirror print_png(1, 0, 1, "Back", 1, 1);
 	print_png(1, 0, 0, "Up", 1, 2);
 	print_png(1, 0, 0, "Down", 3, 2);
@@ -374,7 +372,7 @@ main(int argc, char** argv)
 	pcl::visualization::RangeImageVisualizer range_image_widget_static("Range image static");
 	range_image_widget.showRangeImage(range_image_planar);
 
-	std::cout << "wty test 17" << std::endl;
+	// std::cout << "wty test 17" << std::endl;
 	//-------------------------------------
 	// -----Show points on range image-----
 	// ------------------------------------
@@ -395,21 +393,21 @@ main(int argc, char** argv)
 	range_image_widget_static.setPosition(800, 600);
 	range_image_widget_static.showRangeImage(sub_range_image);
 
-	viewer.setPosition(800, 0);
+	viewer->setPosition(800, 0);
 	// while (1)
 	//	viewer.spinOnce();
-	viewer.registerKeyboardCallback(keyboardEventOccurred, (void*)&viewer);
+	viewer->registerKeyboardCallback(keyboardEventOccurred, (void*)&viewer);
 
-	while (!viewer.wasStopped())
+	while (!viewer->wasStopped())
 	{
 		range_image_widget.spinOnce();
 		range_image_borders_widget->spinOnce();
-		viewer.spinOnce();
+		viewer->spinOnce();
 		pcl_sleep(0.01);
 
 		if (live_update)
 		{
-			scene_sensor_pose = viewer.getViewerPose();
+			scene_sensor_pose = viewer->getViewerPose();
 			range_image_planar.createFromPointCloudWithFixedSize(point_cloud, imageSizeX, imageSizeY,
 				centerX, centerY, LengthX, LengthY,
 				scene_sensor_pose, coordinate_frame, noise_level, min_range);
@@ -438,7 +436,7 @@ main(int argc, char** argv)
 				float* ranges = range_image.getRangesArray();
 				unsigned char* rgb_image = pcl::visualization::FloatImageUtils::getVisualImage(ranges, range_image.width, range_image.height);
 
-				std::string png_name = "RangeImageRGBAroundNow.png"; // std::to_string(png_num)
+				std::string png_name = "RangeImageAroundNow.png"; // std::to_string(png_num)
 				pcl::io::saveRgbPNGFile(png_name, rgb_image, range_image.width, range_image.height);
 				png_num++;
 				// pcl::io::savePNGFile("saveRangeImage.png", point_cloud, "rgb");
